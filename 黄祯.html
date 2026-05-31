@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flask + 达梦数据库：体能成绩模块 Web 化踩坑全记录</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --danger: #dc2626;
+        --warn: #d97706;
+        --green: #059669;
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #1e293b;
+        --subtext: #64748b;
+        --code-bg: #1e293b;
+        --code-text: #e2e8f0;
+    }
+    body {
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        line-height: 1.8;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 20px;
+        background: var(--bg);
+        color: var(--text);
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* 顶部封面 */
+    .hero {
+        background: linear-gradient(135deg, #1e3a5f, #2563eb);
+        color: #fff;
+        border-radius: 12px;
+        padding: 48px 32px;
+        margin-bottom: 40px;
+        text-align: center;
+    }
+    .hero h1 { font-size: 28px; margin: 0 0 12px; }
+    .hero p { opacity: .85; font-size: 15px; margin: 4px 0; }
+    .meta { margin-top: 16px; font-size: 13px; opacity: .7; }
+
+    /* 标题 */
+    h2 { color: var(--primary); margin-top: 40px; padding-bottom: 6px; border-bottom: 2px solid var(--primary); }
+    h3 { color: #334155; margin-top: 24px; }
+
+    /* 卡片 */
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin: 16px 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .card-label {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    .label-bug { background: #fee2e2; color: var(--danger); }
+    .label-fix { background: #d1fae5; color: var(--green); }
+    .label-tip { background: #fef3c7; color: var(--warn); }
+
+    /* 代码块 */
+    pre {
+        background: var(--code-bg);
+        color: var(--code-text);
+        padding: 16px 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+        line-height: 1.7;
+        margin: 12px 0;
+    }
+    code { font-family: "JetBrains Mono", "Consolas", monospace; }
+
+    /* 表格 */
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    th { background: #eff6ff; color: var(--primary); }
+
+    /* 引用 */
+    blockquote {
+        background: #f1f5f9;
+        border-left: 4px solid var(--primary);
+        margin: 12px 0;
+        padding: 10px 16px;
+        color: var(--subtext);
+        border-radius: 0 6px 6px 0;
+    }
+
+    /* 标签 */
+    .tag { display: inline-block; background: #eff6ff; color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 6px; }
+
+    footer { margin-top: 60px; font-size: 13px; color: var(--subtext); border-top: 1px solid var(--border); padding-top: 12px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>🏋️ Flask + 达梦数据库：<br>体能成绩模块 Web 化踩坑全记录</h1>
+    <p>从 PySide6 桌面版到 Flask + HTML 网页版，8 个真实踩坑 + 解决方案</p>
+    <p>技术栈：Python · Flask · 达梦数据库 · HTML · JavaScript · Chart.js</p>
+    <div class="meta">作者：学生综合管理系统项目组 · 2025 年 5 月</div>
+</div>
+
+<h2>一、背景</h2>
+<p>本系统最初采用 <strong>PySide6 桌面版</strong>，后逐步将各模块迁移至 <strong>Flask + HTML 网页版</strong>。本文记录的是将「体能成绩录入」模块从桌面版迁移到网页版过程中，遇到的 <strong>8 个真实问题及解决方案</strong>。</p>
+<p>整个迁移过程由 AI 辅助生成代码，本人负责需求定义、方案选择和问题审查。</p>
+
+<h2>二、迁移方案概览</h2>
+<div class="card">
+    <p><strong>改造范围：</strong>仅体能成绩录入模块，不涉及学生信息和学习成绩模块。</p>
+    <p><strong>后端：</strong>在已有 <code>app.py</code> 中新增体能成绩相关 API。</p>
+    <p><strong>前端：</strong>在 <code>index.html</code> 中新增"体能成绩"Tab 页。</p>
+    <p><strong>数据层：</strong>操作达梦数据库中已有的 <code>PHYSICAL_SCORE</code> 表，结构不变。</p>
+</div>
+
+<hr>
+
+<h2>三、踩坑记录（8 个问题 + 解决方案）</h2>
+
+<!-- 问题 1 -->
+<h3>❌ 问题 1：Flask 路由冲突 — "View function mapping is overwriting an existing endpoint"</h3>
+<div class="card">
+    <span class="card-label label-bug">报错</span>
+    <pre><code>AssertionError: View function mapping is overwriting an existing endpoint function: physical</code></pre>
+    <p><strong>原因：</strong>桌面版迁移时已经注册过一个 <code>/api/physical</code> 的路由，AI 新增代码时没检查已有路由，导致重复定义。</p>
+    <span class="card-label label-fix">解决方案</span>
+    <p>搜索整个 <code>app.py</code>，删除重复的路由定义，只保留一个：</p>
+    <pre><code>@app.route('/api/physical', methods=['GET'])
+def get_physical_scores():
+    rows = execute_query("SELECT * FROM PHYSICAL_SCORE ORDER BY STUDENT_ID")
+    return jsonify(rows)
+
+@app.route('/api/physical', methods=['POST'])
+def add_physical_score():
+    data = request.json
+    sql = "INSERT INTO PHYSICAL_SCORE (STUDENT_ID, ITEM, SCORE, TEST_DATE) VALUES (?,?,?,?)"
+    execute_non_query(sql, (data['sid'], data['item'], data['score'], data['date']))
+    return jsonify({'success': True})</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>AI 生成代码时，不会自动检查已有路由。每次新增接口前，先全局搜索路由路径是否已存在。</p>
+</div>
+
+<!-- 问题 2 -->
+<h3>❌ 问题 2：前端表单校验失效 — 空值直接插进数据库</h3>
+<div class="card">
+    <span class="card-label label-bug">现象</span>
+    <p>不填成绩直接点"新增"，没有提示，空值直接插进了数据库。</p>
+    <span class="card-label label-bug">原因</span>
+    <p>AI 生成了 <code>validatePhysical()</code> 函数，但 <code>addPhysical()</code> 里没有调用它。桌面版 Qt 的 <code>QMessageBox.warning()</code> 是自动弹出的，网页版需要手动在 JS 里调用校验函数。</p>
+    <span class="card-label label-fix">解决方案</span>
+    <p>在 <code>addPhysical()</code> 开头加上校验调用：</p>
+    <pre><code>function addPhysical() {
+    if (!validatePhysical()) return;  // ✅ 加上这一行
+
+    const data = {
+        sid: document.getElementById('physical-sid').value,
+        item: document.getElementById('physical-item').value,
+        score: document.getElementById('physical-score').value,
+        date: document.getElementById('physical-date').value
+    };
+
+    fetch('/api/physical', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    }).then(res => res.json())
+      .then(json => {
+          if (json.success) loadPhysicalTable();
+          else alert('新增失败');
+      });
+}</code></pre>
+    <p><code>validatePhysical()</code> 函数示例：</p>
+    <pre><code>function validatePhysical() {
+    const sid = document.getElementById('physical-sid').value.trim();
+    const score = document.getElementById('physical-score').value.trim();
+
+    if (!sid) { alert('请输入学号'); return false; }
+    if (!score) { alert('请输入成绩'); return false; }
+    if (isNaN(Number(score))) { alert('成绩必须是数字'); return false; }
+    return true;
+}</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>AI 会把函数都写出来，但<strong>函数之间的调用关系经常漏掉</strong>。审查代码时，不能只看"函数有没有"，还要看"有没有被调用"。</p>
+</div>
+
+<!-- 问题 3 -->
+<h3>❌ 问题 3：表格数据回填错列 — 点击行后表单数据全乱了</h3>
+<div class="card">
+    <span class="card-label label-bug">现象</span>
+    <p>点击表格某一行，"学号"显示成了"姓名"，"成绩"显示成了"测试日期"。</p>
+    <span class="card-label label-bug">原因</span>
+    <p>桌面版表格列顺序：<code>学号 | 姓名 | 项目 | 成绩 | 测试日期</code>。<br>网页版在前面加了一列"序号"，列索引全部偏移了 1。原来的 JS 写的是 <code>item(row, 0)</code> 取学号，实际上 0 变成了序号列。</p>
+    <table>
+        <tr><th>列索引</th><th>桌面版</th><th>网页版（多了序号列）</th></tr>
+        <tr><td>0</td><td>学号</td><td>序号 ❌</td></tr>
+        <tr><td>1</td><td>姓名</td><td>学号</td></tr>
+        <tr><td>2</td><td>项目</td><td>姓名</td></tr>
+        <tr><td>3</td><td>成绩</td><td>项目</td></tr>
+        <tr><td>4</td><td>测试日期</td><td>成绩</td></tr>
+    </table>
+    <span class="card-label label-fix">解决方案</span>
+    <p>把所有回填逻辑里的列索引统一 <code>+1</code>：</p>
+    <pre><code>function fillPhysicalForm(row) {
+    document.getElementById('physical-sid').value = table.item(row, 1).text();    // 原来是 0
+    document.getElementById('physical-name').value = table.item(row, 2).text();   // 原来是 1
+    document.getElementById('physical-item').value = table.item(row, 3).text();   // 原来是 2
+    document.getElementById('physical-score').value = table.item(row, 4).text();  // 原来是 3
+    document.getElementById('physical-date').value = table.item(row, 5).text();   // 原来是 4
+}</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>这种"索引偏移"Bug <strong>AI 自己不会发现</strong>，因为它生成代码时是按新表写的。只有人去和旧版对比时才能发现。</p>
+</div>
+
+<!-- 问题 4 -->
+<h3>❌ 问题 4：批量导入 Excel 表头不匹配 — "缺少必要字段"</h3>
+<div class="card">
+    <span class="card-label label-bug">报错</span>
+    <pre><code>ValueError: Excel 表头不正确，缺少必要字段</code></pre>
+    <span class="card-label label-bug">原因</span>
+    <p>代码里硬编码了表头 <code>["学号", "姓名", "项目", "成绩", "测试日期"]</code>，但用户拿来的 Excel 表头是 <code>"学生学号", "名字", "测试项目", "分数", "日期"</code>，列名对不上。</p>
+    <span class="card-label label-fix">解决方案</span>
+    <p>放宽表头校验，允许别名映射：</p>
+    <pre><code>def import_physical_excel(path: str) -> tuple:
+    df = pd.read_excel(path)
+    df.columns = df.columns.str.strip()
+
+    col_map = {
+        "学号": ["学号", "学生学号", "SID"],
+        "姓名": ["姓名", "名字"],
+        "项目": ["项目", "测试项目"],
+        "成绩": ["成绩", "分数"],
+        "测试日期": ["测试日期", "日期"]
+    }
+
+    # 找到实际使用的列名
+    used = {}
+    for std, aliases in col_map.items():
+        for col in df.columns:
+            if col in aliases:
+                used[std] = col
+                break
+        else:
+            raise ValueError(f"缺少必要字段：{std}")
+
+    insert_sql = "INSERT INTO PHYSICAL_SCORE (STUDENT_ID, NAME, ITEM, SCORE, TEST_DATE) VALUES (?,?,?,?,?)"
+    # ... 后续逻辑不变
+    return inserted, updated, failed</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>用户拿来的 Excel 永远不会和你预期的表头一模一样。<strong>做别名映射是标配，硬编码表头 = 自找麻烦。</strong></p>
+</div>
+
+<!-- 问题 5 -->
+<h3>❌ 问题 5：搜索框中文模糊匹配失败 — 明明有记录却搜不到</h3>
+<div class="card">
+    <span class="card-label label-bug">现象</span>
+    <p>搜索框输入"张三"，数据库里有这条记录，但表格显示"无结果"。</p>
+    <span class="card-label label-bug">原因</span>
+    <p>JS 的 <code>filter_table()</code> 用的是 <code>item.text().includes(text)</code>，但某些单元格可能是 <code>null</code>（空单元格），调用 <code>text()</code> 会报错，整个过滤函数直接中断。</p>
+    <span class="card-label label-fix">解决方案</span>
+    <p>加空值判断：</p>
+    <pre><code>function filterPhysicalTable(text) {
+    text = text.toLowerCase();
+    for (let row = 0; row < table.rowCount; row++) {
+        let match = false;
+        for (let col = 0; col < table.columnCount; col++) {
+            const item = table.item(row, col);
+            if (item && item.text().toLowerCase().includes(text)) {
+                match = true;
+                break;
+            }
+        }
+        table.setRowHidden(row, !match);
+    }
+}</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>JS 里访问对象属性前，一定要先判空。AI 生成的代码经常漏掉这种边界情况。</p>
+</div>
+
+<!-- 问题 6 -->
+<h3>❌ 问题 6：Chart.js 折线图偶尔不显示 — "Cannot read properties of null"</h3>
+<div class="card">
+    <span class="card-label label-bug">报错</span>
+    <pre><code>Uncaught TypeError: Cannot read properties of null (reading 'getContext')</code></pre>
+    <span class="card-label label-bug">原因</span>
+    <p>Chart.js 需要在页面加载完成后才能找到 <code>&lt;canvas&gt;</code> 元素。但网页用了 Tab 切换 + <code>display: none</code> 隐藏内容，<code>canvas</code> 在隐藏状态下 Chart.js 拿不到渲染上下文。</p>
+    <span class="card-label label-fix">解决方案</span>
+    <p>改为在 Tab 被点击时才初始化图表：</p>
+    <pre><code>// HTML：给 Tab 按钮加 data-target
+&lt;button class="tab-btn" data-target="#tab-chart"&gt;成绩分析&lt;/button&gt;
+
+// JS：点击 Tab 时才初始化图表
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (btn.dataset.target === '#tab-chart') {
+            initChart();  // 在这里初始化，而不是页面 onload
+        }
+    });
+});
+
+function initChart() {
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: { /* ... */ },
+        options: { responsive: true }
+    });
+}</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>DOM 元素在 <code>display: none</code> 状态下，很多 API 无法正常工作。需要等元素"可见"之后再操作。</p>
+</div>
+
+<!-- 问题 7 -->
+<h3>❌ 问题 7：删除体能成绩无二次确认 — 一点就删了</h3>
+<div class="card">
+    <span class="card-label label-bug">现象</span>
+    <p>选中一行点"删除"，直接就删了，没有任何确认弹窗。</p>
+    <span class="card-label label-bug">原因</span>
+    <p>桌面版 Qt 用的是 <code>QMessageBox.question()</code>，自带确认弹窗。网页版 AI 生成的代码直接调用了 <code>fetch(..., {method: 'DELETE'})</code>，没有任何确认逻辑。</p>
+    <span class="card-label label-fix">解决方案</span>
+    <p>在删除前加 <code>confirm()</code> 弹窗：</p>
+    <pre><code>function deletePhysical(row) {
+    const sid = table.item(row, 1).text();
+    const item = table.item(row, 3).text();
+
+    if (!confirm(`确定删除学号 ${sid} 的「${item}」记录吗？`)) {
+        return;  // 用户点"取消"，直接退出
+    }
+
+    fetch(`/api/physical/${sid}`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(json => {
+            if (json.success) {
+                loadPhysicalTable();
+                alert('删除成功');
+            }
+        });
+}</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>删除操作一定要二次确认。AI 不会主动加这个，因为它不知道"误删"的严重性。</p>
+</div>
+
+<!-- 问题 8 -->
+<h3>❌ 问题 8：Flask 启动报端口冲突 — "Address already in use: 5000"</h3>
+<div class="card">
+    <span class="card-label label-bug">报错</span>
+    <pre><code>OSError: [Errno 10048] Address already in use: 5000</code></pre>
+    <span class="card-label label-bug">原因</span>
+    <p>之前调试时 Flask 进程没有正常退出，或者电脑里其他程序（如之前跑过的 PySide6 版也用了 5000 端口）占用了端口。</p>
+    <span class="card-label label-fix">解决方案（二选一）</span>
+    <p><strong>方案一（推荐）：</strong>改端口号为 5001：</p>
+    <pre><code># run.py
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001, debug=True)</code></pre>
+    <p><strong>方案二：</strong>杀掉占用进程：</p>
+    <pre><code># Windows 命令行
+netstat -ano | findstr 5000
+taskkill /PID &lt;进程号&gt; /F</code></pre>
+    <span class="card-label label-tip">经验</span>
+    <p>调试时经常遇到端口被占，改端口号是最快的办法。正式部署时用 Nginx 反向代理，不暴露端口号。</p>
+</div>
+
+<hr>
+
+<h2>四、总结</h2>
+<div class="card">
+    <p>本次体能成绩模块 Web 化，共遇到 <strong>8 个问题</strong>，涵盖：</p>
+    <table>
+        <tr><th>类别</th><th>问题数</th><th>典型案例</th></tr>
+        <tr><td>后端路由</td><td>1</td><td>路由重复定义</td></tr>
+        <tr><td>前端逻辑</td><td>3</td><td>校验未调用、索引偏移、空值未判</td></tr>
+        <tr><td>数据导入</td><td>1</td><td>Excel 表头不匹配</td></tr>
+        <tr><td>图表渲染</td><td>1</td><td>隐藏状态下 canvas 无法获取</td></tr>
+        <tr><td>用户体验</td><td>1</td><td>删除无二次确认</td></tr>
+        <tr><td>环境配置</td><td>1</td><td>端口被占用</td></tr>
+    </table>
+    <p style="margin-top:16px"><strong>核心感悟：</strong>AI 能写代码，但不会帮你"连接起来"。函数写了不等于被调用，路由加了不等于不冲突。<strong>人的价值在于审查、对比和验证。</strong></p>
+</div>
+
+<h2>五、完整代码</h2>
+<p>完整的 <code>app.py</code>、<code>index.html</code>、<code>app.js</code> 代码较长，已上传至 GitHub：</p>
+<p>👉 <a href="https://github.com/yst233-stu/student-system-blog">https://github.com/yst233-stu/student-system-blog</a></p>
+
+<footer>
+    © 2025 学生综合管理系统 · 发布于 GitHub Pages · 基于 Flask + 达梦数据库
+</footer>
+
+</body>
+</html>
